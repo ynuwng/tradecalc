@@ -132,6 +132,7 @@ function handleConnect() {
     stockData.value.clearHistory();
     
     if (stockData.value.source.value === 'demo') {
+      // For demo mode, start from the purchase price as the baseline
       stockData.value.startDemo(calculator.value.purchasePrice.value);
     } else {
       stockData.value.startLiveData();

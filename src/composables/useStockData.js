@@ -76,7 +76,7 @@ export function useStockData() {
     let price = basePrice;
     let drift = 0;
     
-    // Initialize
+    // Initialize - set previous close as the starting price for demo mode
     previousClose.value = basePrice;
     addPricePoint(price);
     

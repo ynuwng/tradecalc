@@ -23,7 +23,7 @@
     </div>
 
     <!-- Chart -->
-    <canvas ref="chartCanvas" id="priceChart" style="height: 200px;"></canvas>
+    <canvas ref="chartCanvas" id="priceChart"></canvas>
 
     <div class="divider"></div>
 
@@ -85,6 +85,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { fmt, pct } from '../utils/formatters.js';
 import { Chart, registerables } from 'chart.js';
+import 'chartjs-adapter-date-fns';
 
 Chart.register(...registerables);
 
@@ -158,11 +159,28 @@ function initChart() {
         },
         scales: {
           x: {
-            display: false
+            display: true,
+            type: 'time',
+            time: {
+              displayFormats: {
+                second: 'HH:mm:ss',
+                minute: 'HH:mm',
+                hour: 'HH:mm'
+              },
+              tooltipFormat: 'HH:mm:ss'
+            },
+            ticks: {
+              color: '#a6adbb',
+              maxTicksLimit: 6
+            },
+            grid: {
+              color: '#222b3d'
+            }
           },
           y: {
+            beginAtZero: false,
             ticks: {
-              callback: (value) => '$' + value,
+              callback: (value) => '$' + value.toFixed(2),
               color: '#a6adbb'
             },
             grid: {
@@ -188,13 +206,28 @@ function addDataPoint(timestamp, price) {
   }
 
   try {
-    chart.value.data.labels.push(timestamp.toLocaleTimeString());
-    chart.value.data.datasets[0].data.push(price);
+    // Use timestamp directly for time scale
+    chart.value.data.labels.push(timestamp);
+    chart.value.data.datasets[0].data.push({
+      x: timestamp,
+      y: price
+    });
 
     // Keep only last 300 points
     if (chart.value.data.labels.length > 300) {
       chart.value.data.labels.shift();
       chart.value.data.datasets[0].data.shift();
+    }
+
+    // Update Y-axis scale to fit data
+    if (chart.value.data.datasets[0].data.length > 0) {
+      const prices = chart.value.data.datasets[0].data.map(d => d.y);
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const padding = (maxPrice - minPrice) * 0.05; // 5% padding
+      
+      chart.value.options.scales.y.min = Math.max(0, minPrice - padding);
+      chart.value.options.scales.y.max = maxPrice + padding;
     }
 
     chart.value.update('none');
