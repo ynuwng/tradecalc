@@ -73,6 +73,16 @@ export function useChart(canvasRef) {
 
     chart.value.data.labels = labels;
     chart.value.data.datasets[0].data = data;
+
+    if (data.length > 1) {
+      const minVal = Math.min(...data);
+      const maxVal = Math.max(...data);
+      const padding = (maxVal - minVal) * 0.05;
+      
+      chart.value.options.scales.y.min = minVal - padding;
+      chart.value.options.scales.y.max = maxVal + padding;
+    }
+
     chart.value.update('none'); // No animation for better performance
   }
 
@@ -90,6 +100,16 @@ export function useChart(canvasRef) {
       if (chart.value.data.labels.length > 300) {
         chart.value.data.labels.shift();
         chart.value.data.datasets[0].data.shift();
+      }
+
+      const data = chart.value.data.datasets[0].data;
+      if (data.length > 1) {
+        const minVal = Math.min(...data);
+        const maxVal = Math.max(...data);
+        const padding = (maxVal - minVal) * 0.05;
+
+        chart.value.options.scales.y.min = minVal - padding;
+        chart.value.options.scales.y.max = maxVal + padding;
       }
 
       chart.value.update('none');
