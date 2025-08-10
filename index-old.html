@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock Calculator — Risk & P/L</title>
+  <!-- 使用系统字体，避免外部字体加载延迟 -->
+  <style>
+    /* 页面加载完成后再加载外部字体 */
+    .fonts-loading { font-family: system-ui, -apple-system, sans-serif; }
+    .fonts-loaded { font-family: Inter, system-ui, sans-serif; }
+  </style>
+  <style>
+    :root{
+      --bg:#0b0e14; --card:#121826; --muted:#1b2333; --text:#e6e9ef; --sub:#a6adbb;
+      --accent:#6ee7b7; --accent2:#60a5fa; --danger:#ef4444; --warn:#f59e0b;
+      --ok:#22c55e; --border:#222b3d;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0e14 0%,#0e1320 100%);color:var(--text)}
+    .app{max-width:1200px;margin:24px auto;padding:0 16px}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-size:24px;font-weight:700;letter-spacing:.3px}
+    .controls{display:flex;gap:8px;align-items:center}
+    .badge{padding:6px 10px;border-radius:999px;background:var(--muted);color:var(--sub);font-size:12px}
+
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr}}
+
+    .card{background:radial-gradient(1200px 600px at -10% -20%,rgba(110,231,183,.07),transparent 60%),
+           radial-gradient(800px 400px at 120% 120%,rgba(96,165,250,.07),transparent 60%),
+           var(--card);
+          border:1px solid var(--border);border-radius:16px;padding:16px}
+    .card h3{margin:0 0 10px 0;font-size:16px;color:var(--sub);font-weight:600}
+
+    .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-bottom:10px}
+    .row .field{grid-column:span 6}
+    .row .field.sm{grid-column:span 3}
+    .row .field.lg{grid-column:span 12}
+    @media (max-width: 720px){.row .field{grid-column:span 12}}
+
+    label{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+    input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0d1320;color:var(--text)}
+    input::placeholder{color:#728099}
+    input[type=number]{appearance:textfield}
+
+    .hl{color:var(--accent)}
+    .price{font-weight:700;font-size:28px}
+    .sub{color:var(--sub);font-size:12px}
+
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    @media (max-width: 980px){.kpis{grid-template-columns:repeat(2,1fr)}}
+    .kpi{background:var(--muted);border:1px solid var(--border);padding:12px;border-radius:12px}
+    .kpi .name{font-size:12px;color:var(--sub)}
+    .kpi .value{font-weight:700;font-size:18px;margin-top:6px}
+
+    .pill{padding:4px 8px;border-radius:999px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+    .pill.ok{background:rgba(34,197,94,.12);color:var(--ok);border:1px solid rgba(34,197,94,.25)}
+    .pill.warn{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25)}
+    .pill.bad{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.25)}
+
+    .footer{margin-top:10px;font-size:12px;color:var(--sub)}
+    .btn{background:linear-gradient(180deg,#1f2937,#0f172a);border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer}
+    .btn.primary{background:linear-gradient(180deg,#059669,#065f46);border-color:#064e3b}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+
+    canvas{width:100% !important;height:320px !important}
+    .divider{height:1px;background:var(--border);margin:12px 0}
+    .right-col .row{margin-bottom:12px}
+    .tooltip{border-bottom:1px dashed var(--sub);cursor:help}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title">Stock Calculator — P/L, Risk & Day Trading Guardrails</div>
+      <div class="controls">
+        <span class="badge">Front‑end only • Bring your own API key for live quotes</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Left: Inputs -->
+      <div class="card">
+        <h3>Inputs</h3>
+        <div class="row">
+          <div class="field sm">
+            <label>Price Source</label>
+            <select id="priceSource">
+              <option value="demo">Demo (simulated)</option>
+              <option value="finnhub">Finnhub.io (REST poll)</option>
+            </select>
+          </div>
+          <div class="field sm">
+            <label>API Key <span class="sub">(required for Finnhub)</span></label>
+            <input id="apiKey" placeholder="Your API token" />
+          </div>
+          <div class="field sm">
+            <label>Stock Symbol</label>
+            <input id="symbol" placeholder="e.g., AAPL" value="AAPL"/>
+          </div>
+          <div class="field sm" style="display:flex;align-items:flex-end">
+            <button id="connect" class="btn primary" style="width:100%">Connect</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field sm">
+            <label>Number of Shares</label>
+            <input id="shares" type="number" min="0" step="1" value="100"/>
+          </div>
+          <div class="field sm">
+            <label>Purchase Price ($)</label>
+            <input id="purchase" type="number" min="0" step="0.01" value="150"/>
+          </div>
+          <div class="field sm">
+            <label>Commission / Fees ($, round trip)</label>
+            <input id="fees" type="number" min="0" step="0.01" value="2"/>
+          </div>
+          <div class="field sm">
+            <label>Slippage (%)</label>
+            <input id="slippage" type="number" min="0" step="0.01" value="0.05"/>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field sm">
+            <label>Stop Loss Rate (%)</label>
+            <input id="stopRate" type="number" min="0" step="0.05" value="2"/>
+          </div>
+          <div class="field sm">
+            <label>Take Profit Rate (%)</label>
+            <input id="tpRate" type="number" min="0" step="0.05" value="4"/>
+          </div>
+          <div class="field sm">
+            <label>Account Equity ($)</label>
+            <input id="equity" type="number" min="0" step="1" value="25000"/>
+          </div>
+          <div class="field sm">
+            <label>Risk per Trade (% of equity)</label>
+            <input id="riskPct" type="number" min="0" step="0.1" value="0.5"/>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field sm">
+            <label>Use Margin?</label>
+            <select id="margin">
+              <option value="none">No</option>
+              <option value="intraday">Yes — 4:1 intraday</option>
+              <option value="overnight">Yes — 2:1 overnight</option>
+            </select>
+          </div>
+          <div class="field sm">
+            <label>Est. Buying Power ($)</label>
+            <input id="buyingPower" type="number" min="0" step="1" value="100000"/>
+          </div>
+          <div class="field sm">
+            <label>Daily Loss Limit (%)</label>
+            <input id="dailyLoss" type="number" min="0" step="0.1" value="2"/>
+          </div>
+          <div class="field sm">
+            <label>Trades last 5 business days <span class="tooltip" title="US PDT rule: 4+ day trades within 5 business days on a margin account with < $25k equity flags PDT.">?</span></label>
+            <input id="pdtTrades" type="number" min="0" step="1" value="0"/>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="kpis" id="alerts">
+          <div class="kpi"><div class="name">PDT Status</div><div class="value" id="pdtStatus">—</div></div>
+          <div class="kpi"><div class="name">Guardrail</div><div class="value" id="guardrail">—</div></div>
+          <div class="kpi"><div class="name">R:R (TP / Stop)</div><div class="value" id="rr">—</div></div>
+          <div class="kpi"><div class="name">Recommended Shares</div><div class="value" id="recShares">—</div></div>
+        </div>
+      </div>
+
+      <!-- Right: Live -->
+      <div class="card right-col">
+        <h3>Live Price</h3>
+        <div class="row">
+          <div class="field lg">
+            <div style="display:flex;align-items:baseline;gap:12px">
+              <div class="price" id="livePrice">$—</div>
+              <div class="pill" id="changePill">0.00 (0.00%)</div>
+            </div>
+            <div class="sub" id="priceMeta">Symbol: — • Source: — • Updated: —</div>
+          </div>
+        </div>
+        <canvas id="priceChart"></canvas>
+
+        <div class="divider"></div>
+        <div class="row">
+          <div class="field sm">
+            <label>Return On Investment</label>
+            <div class="kpi"><div class="name">ROI (%)</div><div class="value" id="roi">—</div></div>
+          </div>
+          <div class="field sm">
+            <label>Profit & Loss</label>
+            <div class="kpi"><div class="name">Unrealized P/L</div><div class="value" id="pl">—</div></div>
+          </div>
+          <div class="field sm">
+            <label>Stop / Take Profit Prices</label>
+            <div class="kpi"><div class="name">Stop • Take Profit</div><div class="value" id="stops">—</div></div>
+          </div>
+          <div class="field sm">
+            <label>Potential P/L at Stop / TP</label>
+            <div class="kpi"><div class="name">Stop P/L • TP P/L</div><div class="value" id="plStops">—</div></div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div id="loadStatus" style="color: var(--accent); margin-bottom: 8px;">✅ Page loaded successfully • External resources loading in background</div>
+          This tool is educational and front‑end only. Real‑time quotes require your own key. Calculations ignore taxes. Double‑check before trading.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <audio id="beep" preload="auto">
+    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABYAZGF0YQgAAAAA" type="audio/wav">
+  </audio>
+
+  <script>
+    // ---------- Utilities ----------
+    const $ = (id)=>document.getElementById(id);
+    const fmt = (n,prec=2)=> (isFinite(n)? `$${Number(n).toLocaleString(undefined,{minimumFractionDigits:prec,maximumFractionDigits:prec})}` : '—');
+    const pct = (n,prec=2)=> (isFinite(n)? `${Number(n).toLocaleString(undefined,{minimumFractionDigits:prec,maximumFractionDigits:prec})}%` : '—');
+    const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
+
+    // ---------- Elements ----------
+    const els = {
+      priceSource: $('priceSource'), apiKey: $('apiKey'), symbol: $('symbol'), connect: $('connect'),
+      shares: $('shares'), purchase: $('purchase'), fees: $('fees'), slippage: $('slippage'),
+      stopRate: $('stopRate'), tpRate: $('tpRate'), equity: $('equity'), riskPct: $('riskPct'),
+      margin: $('margin'), buyingPower: $('buyingPower'), dailyLoss: $('dailyLoss'), pdtTrades: $('pdtTrades'),
+      livePrice: $('livePrice'), changePill: $('changePill'), priceMeta: $('priceMeta'),
+      roi: $('roi'), pl: $('pl'), stp: $('stp'), stops: $('stops'), plStops: $('plStops'),
+      pdtStatus: $('pdtStatus'), guardrail: $('guardrail'), rr: $('rr'), recShares: $('recShares'),
+      beep: $('beep')
+    };
+
+    // ---------- State ----------
+    const state = {
+      source: 'demo',
+      symbol: 'AAPL',
+      lastPrice: NaN,
+      prevClose: NaN,
+      prices: [],
+      timer: null,
+      pollingMs: 3000,
+      crossedStop:false,
+      crossedTP:false
+    };
+
+    // ---------- Chart ----------
+    let priceChart = null;
+    
+    function initChart() {
+      // 等待Chart.js加载完成
+      if (typeof Chart === 'undefined') {
+        setTimeout(initChart, 100);
+        return;
+      }
+      
+      const ctx = document.getElementById('priceChart').getContext('2d');
+      priceChart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Price', data: [], fill:false, tension:0.25 }] },
+        options: {
+          animation:false,
+          plugins: { legend: { display:false } },
+          scales: { x: { display:false }, y: { ticks: { callback:(v)=>'$'+v } } }
+        }
+      });
+    }
+
+    function pushPrice(p){
+      const ts = new Date();
+      state.prices.push({t: ts, p});
+      if(state.prices.length>300) state.prices.shift();
+      
+      // 只有当图表初始化完成时才更新
+      if(priceChart) {
+        priceChart.data.labels.push(ts.toLocaleTimeString());
+        priceChart.data.datasets[0].data.push(p);
+        if(priceChart.data.labels.length>300){priceChart.data.labels.shift(); priceChart.data.datasets[0].data.shift();}
+        priceChart.update();
+      }
+    }
+
+    // ---------- Data Sources ----------
+    function stopStreaming(){ if(state.timer){ clearInterval(state.timer); state.timer=null; } }
+
+    function startDemo(){
+      stopStreaming();
+      const base = Number(els.purchase.value)||150; // start around entry
+      let price = base;
+      let drift = 0;
+      pushPrice(price);
+      state.lastPrice = price; state.prevClose = base;
+      els.priceMeta.textContent = `Symbol: ${state.symbol} • Source: Demo • Updated: now`;
+      state.timer = setInterval(()=>{
+        const vol = 0.15; // per tick volatility
+        drift = clamp(drift + (Math.random()-0.5)*0.02, -0.2, 0.2);
+        price = Math.max(0.01, price * (1 + drift*0.001 + (Math.random()-0.5)*vol*0.01));
+        state.lastPrice = price;
+        updateLive();
+      }, state.pollingMs);
+    }
+
+    async function pollFinnhub(){
+      stopStreaming();
+      const token = els.apiKey.value.trim();
+      if(!token){ 
+        alert('请输入您的Finnhub API密钥 / Please enter your Finnhub API key.'); 
+        return; 
+      }
+      
+      els.priceMeta.textContent = `Symbol: ${state.symbol} • Source: Finnhub • Status: 连接中... / Connecting...`;
+      
+      // first fetch prev close
+      async function fetchQuote(){
+        try{
+          // 优先使用本地代理服务器，如果失败则直接尝试（可能会被CORS阻止）
+          let url, resp;
+          
+          // 尝试使用本地代理
+          try {
+            url = `/api/quote?symbol=${encodeURIComponent(state.symbol)}&token=${encodeURIComponent(token)}`;
+            resp = await fetch(url);
+          } catch (proxyError) {
+            console.log('本地代理不可用，尝试直接访问API / Local proxy unavailable, trying direct API access');
+            // 如果代理失败，直接访问API
+            url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(state.symbol)}&token=${encodeURIComponent(token)}`;
+            resp = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'X-Finnhub-Token': token
+              }
+            });
+          }
+          
+          if(!resp.ok) {
+            throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+          }
+          
+          const d = await resp.json();
+          
+          if(!d.c && !d.pc) {
+            throw new Error('无效的股票代码或API响应 / Invalid symbol or API response');
+          }
+          
+          const p = Number(d.c||d.pc);
+          state.lastPrice = p; 
+          state.prevClose = Number(d.pc)||p;
+          els.priceMeta.textContent = `Symbol: ${state.symbol} • Source: Finnhub • Updated: ${new Date().toLocaleTimeString()}`;
+          updateLive();
+          
+        }catch(e){ 
+          console.error('Finnhub API Error:', e);
+          els.priceMeta.textContent = `Symbol: ${state.symbol} • Source: Finnhub • Error: ${e.message}`;
+          
+          // 如果是CORS错误，提供解决方案
+          if(e.message.includes('CORS') || e.message.includes('fetch')) {
+            alert(`CORS错误：由于浏览器安全限制，无法直接访问Finnhub API。\n\n解决方案：\n1. 使用浏览器扩展禁用CORS\n2. 运行本地代理服务器\n3. 使用Demo模式进行测试\n\nCORS Error: Cannot access Finnhub API due to browser security restrictions.\n\nSolutions:\n1. Use browser extension to disable CORS\n2. Run local proxy server\n3. Use Demo mode for testing`);
+          } else {
+            alert(`API错误 / API Error: ${e.message}`);
+          }
+        }
+      }
+      
+      await fetchQuote();
+      state.timer = setInterval(fetchQuote, state.pollingMs);
+    }
+
+    // ---------- Calculations ----------
+    function calc(){
+      const shares = Number(els.shares.value)||0;
+      const entry = Number(els.purchase.value)||0;
+      const fees = Number(els.fees.value)||0;
+      const slipPct = (Number(els.slippage.value)||0)/100;
+      const stopRate = (Number(els.stopRate.value)||0)/100;
+      const tpRate = (Number(els.tpRate.value)||0)/100;
+      const equity = Number(els.equity.value)||0;
+      const riskPct = (Number(els.riskPct.value)||0)/100;
+      const buyingPower = Number(els.buyingPower.value)||0;
+
+      const stopPrice = entry * (1 - stopRate);
+      const tpPrice = entry * (1 + tpRate);
+      const current = state.lastPrice;
+
+      // Realized + unrealized inputs
+      const effectiveEntry = entry * (1 + slipPct); // assume adverse slippage on entry
+      const effectiveExit = current * (1 - slipPct); // adverse slippage on exit
+      const positionCost = shares * effectiveEntry + fees;
+      const pl = shares * (effectiveExit - effectiveEntry) - fees;
+      const roi = positionCost>0 ? (pl / positionCost) * 100 : NaN;
+
+      // P/L at stop & TP (assuming fill with slippage + fees)
+      const effStop = stopPrice * (1 - slipPct);
+      const effTP = tpPrice * (1 - slipPct);
+      const plStop = shares * (effStop - effectiveEntry) - fees;
+      const plTP = shares * (effTP - effectiveEntry) - fees;
+
+      // R:R using per-share delta (ignoring fees for ratio stability)
+      const riskPerShare = Math.max(1e-9, effectiveEntry - effStop);
+      const rewardPerShare = Math.max(0, effTP - effectiveEntry);
+      const rr = rewardPerShare / riskPerShare;
+
+      // Recommended shares by risk budgeting & buying power
+      const riskBudget = equity * riskPct;
+      const recByRisk = Math.floor(riskBudget / riskPerShare);
+      const recByBP = Math.floor(buyingPower / effectiveEntry);
+      const recShares = Math.max(0, Math.min(recByRisk, recByBP));
+
+      // Guardrails & PDT
+      const dailyLossLimit = equity * (Number(els.dailyLoss.value)||0)/100;
+      const pdtTrades = Number(els.pdtTrades.value)||0;
+      const pdtRisk = (equity < 25000) && (els.margin.value!=='none') && (pdtTrades>=4);
+
+      return {shares, entry, fees, slipPct, stopRate, tpRate, equity, riskPct, buyingPower,
+              stopPrice, tpPrice, current, effectiveEntry, effectiveExit, positionCost,
+              pl, roi, effStop, effTP, plStop, plTP, rr, recShares, riskBudget,
+              dailyLossLimit, pdtRisk, pdtTrades};
+    }
+
+    function updateLive(){
+      const c = calc();
+      if(isFinite(c.current)){
+        pushPrice(c.current);
+      }
+      // Price + change
+      const prev = isFinite(state.prevClose)? state.prevClose : c.entry;
+      const chg = c.current - prev;
+      const chgPct = prev? (chg/prev*100):0;
+
+      els.livePrice.textContent = fmt(c.current);
+      els.changePill.textContent = `${chg>=0?'+':''}${chg.toFixed(2)} (${chgPct>=0?'+':''}${chgPct.toFixed(2)}%)`;
+      els.changePill.className = `pill ${chg>=0? 'ok' : 'bad'}`;
+      els.priceMeta.textContent = `Symbol: ${state.symbol} • Source: ${state.source==='demo'?'Demo':'Finnhub'} • Updated: ${new Date().toLocaleTimeString()}`;
+
+      // KPI Outputs
+      $('stops').textContent = `${fmt(c.stopPrice)} • ${fmt(c.tpPrice)}`;
+      $('plStops').textContent = `${fmt(c.plStop)} • ${fmt(c.plTP)}`;
+      $('rr').textContent = isFinite(c.rr)? c.rr.toFixed(2) : '—';
+      $('recShares').textContent = isFinite(c.recShares)? c.recShares.toLocaleString() : '—';
+      $('roi').textContent = isFinite(c.roi)? pct(c.roi) : '—';
+      $('pl').textContent = isFinite(c.pl)? fmt(c.pl) : '—';
+
+      // Guardrails
+      const riskInfo = `Risk budget: ${fmt(c.riskBudget)} • Limit/day: ${fmt(c.dailyLossLimit)}`;
+      $('guardrail').innerHTML = `<span class="${c.pl <= -c.dailyLossLimit ? 'pill bad' : 'pill ok'}">${riskInfo}</span>`;
+
+      // PDT
+      $('pdtStatus').innerHTML = c.pdtRisk
+        ? `<span class="pill bad">Potential PDT Flag</span>`
+        : `<span class="pill ${ (els.margin.value!=='none' && c.pdtTrades>=3 && c.equity<25000) ? 'warn' : 'ok' }">${c.equity<25000?'Equity < $25k':'OK'}</span>`;
+
+      // Alerts (beep if cross stop or TP)
+      const stopHit = c.current <= c.stopPrice && isFinite(c.current);
+      const tpHit = c.current >= c.tpPrice && isFinite(c.current);
+      if(stopHit && !state.crossedStop){ els.beep.play().catch(()=>{}); state.crossedStop=true; }
+      if(tpHit && !state.crossedTP){ els.beep.play().catch(()=>{}); state.crossedTP=true; }
+      if(!stopHit) state.crossedStop=false; if(!tpHit) state.crossedTP=false;
+    }
+
+    // ---------- Events ----------
+    function recalc(){ updateLive(); }
+
+    ['shares','purchase','fees','slippage','stopRate','tpRate','equity','riskPct','margin','buyingPower','dailyLoss','pdtTrades']
+      .forEach(id=> $(id).addEventListener('input', recalc));
+
+    els.symbol.addEventListener('change', ()=>{
+      state.symbol = els.symbol.value.trim().toUpperCase()||'AAPL';
+      if(priceChart) {
+        priceChart.data.labels = []; priceChart.data.datasets[0].data = []; priceChart.update();
+      }
+      if(state.source==='demo') startDemo(); else pollFinnhub();
+    });
+
+    els.priceSource.addEventListener('change', () => {
+      state.source = els.priceSource.value;
+    });
+
+    els.connect.addEventListener('click', ()=>{
+      state.symbol = els.symbol.value.trim().toUpperCase()||'AAPL';
+      if(priceChart) {
+        priceChart.data.labels = []; priceChart.data.datasets[0].data = []; priceChart.update();
+      }
+      if(els.priceSource.value==='demo'){ state.source='demo'; startDemo(); }
+      else { state.source='finnhub'; pollFinnhub(); }
+    });
+
+    // 延迟加载外部资源，避免阻塞页面加载
+    function loadExternalResources() {
+      const statusEl = document.getElementById('loadStatus');
+      
+      // 加载字体
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+      fontLink.onload = () => {
+        document.body.style.fontFamily = 'Inter, system-ui, -apple-system, sans-serif';
+        if(statusEl) statusEl.innerHTML = '✅ Page ready • Font loaded • Chart loading...';
+      };
+      document.head.appendChild(fontLink);
+      
+      // 加载Chart.js
+      const chartScript = document.createElement('script');
+      chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      chartScript.onload = () => {
+        initChart(); // 重新初始化图表
+        if(statusEl) statusEl.innerHTML = '✅ All resources loaded • Fully functional';
+        setTimeout(() => {
+          if(statusEl) statusEl.style.display = 'none';
+        }, 3000);
+      };
+      document.head.appendChild(chartScript);
+      
+      // 加载分析脚本
+      setTimeout(() => {
+        // Speed Insights
+        window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+        const siScript = document.createElement('script');
+        siScript.src = '/_vercel/speed-insights/script.js';
+        siScript.async = true;
+        document.head.appendChild(siScript);
+        
+        // Analytics
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        const vaScript = document.createElement('script');
+        vaScript.src = '/_vercel/analytics/script.js';
+        vaScript.async = true;
+        document.head.appendChild(vaScript);
+      }, 1000);
+    }
+
+    // Auto-init - 立即初始化核心功能
+    (function init(){
+      // Load saved values
+      const keys = ['shares','purchase','fees','slippage','stopRate','tpRate','equity','riskPct','margin','buyingPower','dailyLoss','pdtTrades','symbol','priceSource'];
+      keys.forEach(k=>{ const v = localStorage.getItem('sc_'+k); if(v!==null){ if($(k).tagName==='SELECT'){ $(k).value=v; } else { $(k).value=v; } } });
+      els.symbol.value = (localStorage.getItem('sc_symbol')||els.symbol.value);
+      els.priceSource.value = (localStorage.getItem('sc_priceSource')||els.priceSource.value);
+      // Save on change
+      keys.forEach(k=> $(k).addEventListener('input', ()=> localStorage.setItem('sc_'+k, $(k).value)) );
+      // Start
+      state.source = els.priceSource.value;
+      state.symbol = els.symbol.value.toUpperCase();
+      startDemo();
+      updateLive();
+      
+      // 页面加载完成后再加载外部资源
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadExternalResources);
+      } else {
+        setTimeout(loadExternalResources, 100);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,16 +1,21 @@
 {
   "name": "stockcalc",
-  "version": "1.0.0",
-  "description": "Stock Calculator with Risk Management",
-  "main": "proxy-server.js",
+  "version": "2.0.0",
+  "description": "Professional Stock Calculator with Risk Management - Built with Vue & Vite",
+  "type": "module",
   "scripts": {
-    "start": "node proxy-server.js",
-    "dev": "node proxy-server.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview"
   },
   "dependencies": {
     "@vercel/speed-insights": "^1.2.0",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "node-fetch": "^2.7.0"
+    "vue": "^3.4.15",
+    "chart.js": "^4.4.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.3",
+    "vite": "^5.0.11"
   }
 }
