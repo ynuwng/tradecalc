@@ -21,7 +21,12 @@ export function useStockData() {
     const current = currentPrice.value;
     const previous = previousClose.value;
     
-    if (!isFinite(current) || !isFinite(previous) || previous <= 0) {
+    if (!isFinite(current)) {
+      return { amount: 0, percent: 0 };
+    }
+    
+    // If we don't have a valid previousClose, return zero change
+    if (!isFinite(previous) || previous <= 0) {
       return { amount: 0, percent: 0 };
     }
     
@@ -76,8 +81,9 @@ export function useStockData() {
     let price = basePrice;
     let drift = 0;
     
-    // Initialize - set previous close as the starting price for demo mode
-    previousClose.value = basePrice;
+    // Initialize - for demo mode, set previous close to simulate market data
+    // Use a slight variation from base price to simulate realistic market movement
+    previousClose.value = basePrice * (1 + (Math.random() - 0.5) * 0.02); // ±1% variation
     addPricePoint(price);
     
     pollingTimer = setInterval(() => {
@@ -104,10 +110,8 @@ export function useStockData() {
       try {
         const quote = await apiService.fetchQuote(symbol.value, apiKey.value);
         
-        // On the first successful fetch, set the previous close price
-        if (!isConnected.value) {
-          previousClose.value = quote.previousClose || quote.current;
-        }
+        // Always update previous close from API data (this is the market's previous close, not our purchase price)
+        previousClose.value = quote.previousClose;
         
         addPricePoint(quote.current);
         isConnected.value = true;

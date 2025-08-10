@@ -27,13 +27,13 @@ export function calculateMetrics(inputs) {
   const effectiveEntry = entry * (1 + slippagePct / 100);
   const effectiveExit = current * (1 - slippagePct / 100);
   
-  const positionCost = shares * effectiveEntry;
+  const positionCost = shares * effectiveEntry + fees;
   const pl = shares * (effectiveExit - effectiveEntry) - fees;
-  const roi = positionCost > 0 ? (pl / positionCost) * 100 : 0;
+  const roi = positionCost > 0 ? (pl / positionCost) * 100 : NaN;
 
   // P/L at stop & TP
   const effStop = stopPrice * (1 - slippagePct / 100);
-  const effTP = tpPrice;
+  const effTP = tpPrice * (1 - slippagePct / 100);
   const plStop = shares * (effStop - effectiveEntry) - fees;
   const plTP = shares * (effTP - effectiveEntry) - fees;
 
