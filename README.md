@@ -151,4 +151,4 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-**Built with ❤️ using Vue.js and Vite**
+**Built with ❤️ using Vue.js and Vite**   
