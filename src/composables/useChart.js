@@ -44,7 +44,13 @@ export function useChart(canvasRef) {
         },
         scales: {
           x: {
-            display: false
+            display: true, // Show the time axis
+            ticks: {
+              color: '#a6adbb'
+            },
+            grid: {
+              display: false
+            }
           },
           y: {
             ticks: {
@@ -77,13 +83,14 @@ export function useChart(canvasRef) {
     if (data.length > 1) {
       const minVal = Math.min(...data);
       const maxVal = Math.max(...data);
-      const padding = (maxVal - minVal) * 0.05;
+      const padding = (maxVal - minVal) * 0.1 || maxVal * 0.05;
       
-      chart.value.options.scales.y.min = minVal - padding;
-      chart.value.options.scales.y.max = maxVal + padding;
+      chart.value.options.scales.y.min = parseFloat((minVal - padding).toFixed(2));
+      chart.value.options.scales.y.max = parseFloat((maxVal + padding).toFixed(2));
     }
 
-    chart.value.update('none'); // No animation for better performance
+    chart.value.update('none');
+    if (chart.value) chart.value.resize();
   }
 
   function addDataPoint(timestamp, price) {
@@ -106,13 +113,14 @@ export function useChart(canvasRef) {
       if (data.length > 1) {
         const minVal = Math.min(...data);
         const maxVal = Math.max(...data);
-        const padding = (maxVal - minVal) * 0.05;
+        const padding = (maxVal - minVal) * 0.1 || maxVal * 0.05;
 
-        chart.value.options.scales.y.min = minVal - padding;
-        chart.value.options.scales.y.max = maxVal + padding;
+        chart.value.options.scales.y.min = parseFloat((minVal - padding).toFixed(2));
+        chart.value.options.scales.y.max = parseFloat((maxVal + padding).toFixed(2));
       }
 
       chart.value.update('none');
+      if (chart.value) chart.value.resize();
     } catch (error) {
       console.error('Error adding data point to chart:', error);
     }

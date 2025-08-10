@@ -47,11 +47,11 @@ html, body {
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(350px, 1.2fr) 0.8fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .grid {
     grid-template-columns: 1fr;
   }

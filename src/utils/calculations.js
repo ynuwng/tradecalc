@@ -24,19 +24,20 @@ export function calculateMetrics(inputs) {
   const tpPrice = entry * (1 + tpRate / 100);
 
   // Realized + unrealized inputs
-  const effectiveEntry = entry * (1 + slippagePct / 100); // assume adverse slippage on entry
-  const effectiveExit = current * (1 - slippagePct / 100); // adverse slippage on exit
-  const positionCost = shares * entry; // Base cost on entry price, not including slippage or fees for ROI stability
-  const pl = shares * (current - entry) - fees;
-  const roi = positionCost > 0 ? (pl / positionCost) * 100 : NaN;
+  const effectiveEntry = entry * (1 + slippagePct / 100);
+  const effectiveExit = current * (1 - slippagePct / 100);
+  
+  const positionCost = shares * effectiveEntry;
+  const pl = shares * (effectiveExit - effectiveEntry) - fees;
+  const roi = positionCost > 0 ? (pl / positionCost) * 100 : 0;
 
-  // P/L at stop & TP (assuming fill with slippage + fees)
+  // P/L at stop & TP
   const effStop = stopPrice * (1 - slippagePct / 100);
-  const effTP = tpPrice; // Assume TP limit order fills at the target price without slippage
+  const effTP = tpPrice;
   const plStop = shares * (effStop - effectiveEntry) - fees;
   const plTP = shares * (effTP - effectiveEntry) - fees;
 
-  // R:R using per-share delta (ignoring fees for ratio stability)
+  // R:R using per-share delta
   const riskPerShare = Math.max(1e-9, effectiveEntry - effStop);
   const rewardPerShare = Math.max(0, effTP - effectiveEntry);
   const rr = rewardPerShare / riskPerShare;

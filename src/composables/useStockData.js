@@ -98,13 +98,15 @@ export function useStockData() {
     source.value = 'finnhub';
     isLoading.value = true;
     error.value = null;
+    clearHistory(); // Clear previous chart data
 
     const fetchQuote = async () => {
       try {
         const quote = await apiService.fetchQuote(symbol.value, apiKey.value);
         
-        if (isNaN(previousClose.value)) {
-          previousClose.value = quote.previousClose;
+        // On the first successful fetch, set the previous close price
+        if (!isConnected.value) {
+          previousClose.value = quote.previousClose || quote.current;
         }
         
         addPricePoint(quote.current);
