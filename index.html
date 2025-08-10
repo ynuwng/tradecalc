@@ -4,43 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Stock Calculator — Risk & P/L</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
-  
-  <!-- Chart.js 异步加载 -->
-  <script>
-    // Chart.js 异步加载，不阻塞页面渲染
-    const chartScript = document.createElement('script');
-    chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-    chartScript.async = true;
-    document.head.appendChild(chartScript);
-  </script>
-  
-  <!-- Vercel Speed Insights - 异步加载 -->
-  <script>
-    window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
-    // 异步加载，不阻塞页面
-    setTimeout(() => {
-      const script = document.createElement('script');
-      script.src = '/_vercel/speed-insights/script.js';
-      script.async = true;
-      document.head.appendChild(script);
-    }, 100);
-  </script>
-  
-  <!-- Vercel Analytics - 异步加载 -->
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-    // 异步加载，不阻塞页面
-    setTimeout(() => {
-      const script = document.createElement('script');
-      script.src = '/_vercel/analytics/script.js';
-      script.async = true;
-      document.head.appendChild(script);
-    }, 200);
-  </script>
+  <!-- 使用系统字体，避免外部字体加载延迟 -->
+  <style>
+    /* 页面加载完成后再加载外部字体 */
+    .fonts-loading { font-family: system-ui, -apple-system, sans-serif; }
+    .fonts-loaded { font-family: Inter, system-ui, sans-serif; }
+  </style>
   <style>
     :root{
       --bg:#0b0e14; --card:#121826; --muted:#1b2333; --text:#e6e9ef; --sub:#a6adbb;
@@ -49,7 +18,7 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0e14 0%,#0e1320 100%);color:var(--text)}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#0b0e14 0%,#0e1320 100%);color:var(--text)}
     .app{max-width:1200px;margin:24px auto;padding:0 16px}
     .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
     .title{font-size:24px;font-weight:700;letter-spacing:.3px}
@@ -241,6 +210,7 @@
         </div>
 
         <div class="footer">
+          <div id="loadStatus" style="color: var(--accent); margin-bottom: 8px;">✅ Page loaded successfully • External resources loading in background</div>
           This tool is educational and front‑end only. Real‑time quotes require your own key. Calculations ignore taxes. Double‑check before trading.
         </div>
       </div>
@@ -522,11 +492,52 @@
       else { state.source='finnhub'; pollFinnhub(); }
     });
 
-    // Auto-init
-    (function init(){
-      // 初始化图表
-      initChart();
+    // 延迟加载外部资源，避免阻塞页面加载
+    function loadExternalResources() {
+      const statusEl = document.getElementById('loadStatus');
       
+      // 加载字体
+      const fontLink = document.createElement('link');
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+      fontLink.onload = () => {
+        document.body.style.fontFamily = 'Inter, system-ui, -apple-system, sans-serif';
+        if(statusEl) statusEl.innerHTML = '✅ Page ready • Font loaded • Chart loading...';
+      };
+      document.head.appendChild(fontLink);
+      
+      // 加载Chart.js
+      const chartScript = document.createElement('script');
+      chartScript.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      chartScript.onload = () => {
+        initChart(); // 重新初始化图表
+        if(statusEl) statusEl.innerHTML = '✅ All resources loaded • Fully functional';
+        setTimeout(() => {
+          if(statusEl) statusEl.style.display = 'none';
+        }, 3000);
+      };
+      document.head.appendChild(chartScript);
+      
+      // 加载分析脚本
+      setTimeout(() => {
+        // Speed Insights
+        window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+        const siScript = document.createElement('script');
+        siScript.src = '/_vercel/speed-insights/script.js';
+        siScript.async = true;
+        document.head.appendChild(siScript);
+        
+        // Analytics
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+        const vaScript = document.createElement('script');
+        vaScript.src = '/_vercel/analytics/script.js';
+        vaScript.async = true;
+        document.head.appendChild(vaScript);
+      }, 1000);
+    }
+
+    // Auto-init - 立即初始化核心功能
+    (function init(){
       // Load saved values
       const keys = ['shares','purchase','fees','slippage','stopRate','tpRate','equity','riskPct','margin','buyingPower','dailyLoss','pdtTrades','symbol','priceSource'];
       keys.forEach(k=>{ const v = localStorage.getItem('sc_'+k); if(v!==null){ if($(k).tagName==='SELECT'){ $(k).value=v; } else { $(k).value=v; } } });
@@ -539,6 +550,13 @@
       state.symbol = els.symbol.value.toUpperCase();
       startDemo();
       updateLive();
+      
+      // 页面加载完成后再加载外部资源
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadExternalResources);
+      } else {
+        setTimeout(loadExternalResources, 100);
+      }
     })();
   </script>
 </body>
